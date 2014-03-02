@@ -3,74 +3,56 @@
 open Maybe
 
 type Node<'k, 'v> = {
-    left : SplayTree<'k, 'v>
+    left  : SplayTree<'k, 'v>
     right : SplayTree<'k, 'v>
-    key: 'k
-    value: 'v
+    key   : 'k
+    value : 'v
 } and SplayTree<'k, 'v> = Node<'k, 'v> option
 
 let empty<'k, 'v> : SplayTree<'k, 'v> = None
 
-let splayLeft tree =
+let splay topGetter bottomGetter topSetter bottomSetter tree =
     match tree with
     | None -> None
     | Some node ->
         let parent = node
-        let left = Option.get node.left
-        let right = node.right
-        let left' = left.left
-        let right' = { parent with left = left.right
-                                   right = right }
-        let parent' = { left with left = left'
-                                  right = Some right' }
+        let top = Option.get <| topGetter node
+        let bottom = bottomGetter node
+        let top' = topGetter top
+        let bottom' = parent |> topSetter (bottomGetter top)
+                             |> bottomSetter bottom
+        let parent' = top |> topSetter top'
+                          |> bottomSetter (Some bottom')
 
         Some parent'
 
-let splayRight tree =
-    match tree with
-    | None -> None
-    | Some node ->
-        let parent = node
-        let left = node.left
-        let right = Option.get node.right        
-        let left' = { parent with left = left
-                                  right = right.right }
-        let right' = right.right
-        
-        let parent' = { right with left = Some left'
-                                   right = right' }
+// Create some lenses:
+let private left = fun node -> node.left
+let private right = fun node -> node.right
+let private setLeft = fun value node -> { node with left = value }
+let private setRight = fun value node -> { node with right = value }
 
-        Some parent'
+let splayLeft tree = splay left right setLeft setRight tree
+let splayRight tree = splay right left setRight setLeft tree
 
-let zigZigLeft tree =
-    let tree' = splayLeft tree
-    let tree'' = splayLeft tree'
-    tree''
+let zigZig splay1 splay2 = splay1 >> splay2
 
-let zigZigRight tree =
-    let tree' = splayRight tree
-    let tree'' = splayRight tree'
-    tree''
+let zigZigLeft tree = zigZig splayLeft splayLeft tree
+let zigZigRight tree = zigZig splayRight splayRight tree
 
-let zigZagLeft tree =
+let zigZag parentSplay grandParentSplay topGetter topSetter tree =
     let grandParent = Option.get tree
-    let parent = grandParent.left
-    let parent' = splayRight parent
-    let grandParent' = { grandParent with left = parent' }
-    splayLeft <| Some grandParent'
+    let parent = topGetter grandParent
+    let parent' = parentSplay parent
+    let grandParent' = topSetter parent' grandParent
+    grandParentSplay <| Some grandParent'
 
-let zigZagRight tree =
-    let grandParent = Option.get tree
-    let parent = grandParent.right
-    let parent' = splayLeft parent
-    let grandParent' = { grandParent with right = parent' }
-    splayRight <| Some grandParent'
+let zigZagLeft tree = zigZag splayRight splayLeft left setLeft tree
+let zigZagRight tree = zigZag splayLeft splayRight right setRight tree
 
-let rec find<'k, 'v when 'k : equality and 'k : comparison>
-    (key : 'k)
-    (tree : SplayTree<'k, 'v>)
-    : 'v option * SplayTree<'k, 'v> =
-
+let rec find (key : 'k)
+             (tree : SplayTree<'k, 'v>)
+             : 'v option * SplayTree<'k, 'v> =
     match tree with
     | None -> None, tree
     | Some node when key = node.key -> Some node.value, tree

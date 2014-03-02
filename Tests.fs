@@ -12,4 +12,6 @@ type SharpTreeTest() =
         Map.iter (fun k v -> tree := insert k v !tree) map
         Map.iter (fun k v -> let v', tree' = find k !tree
                              tree := tree'
-                             Assert.AreEqual(Some v, v')) map
+                             Assert.AreEqual(Some v, v')
+                             printfn "%A = %A" v v') map
+        printfn "%A" !tree
